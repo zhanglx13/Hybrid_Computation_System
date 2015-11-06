@@ -1,5 +1,5 @@
-#ifndef __PSEUDO_INVERSE__
-#define __PSEUDO_INVERSE__
+#ifndef __PSEUDO_INVERSE_SVD__
+#define __PSEUDO_INVERSE_SVD__
 
 
 #include <Eigen/Dense>

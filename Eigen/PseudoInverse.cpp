@@ -4,6 +4,10 @@
 #include <string>	// stod (-std=c++11)
 #include <stdio.h>	// std::fopen, std::fclose
 
+#define M_ROW		12
+#define M_COL		12
+#define M_FILE		"./matrix_files/matrix12_1.txt"
+#define M_INIT_FILE	"./matrix_files/matrix12_1_25bits.txt"
 
 using namespace eigen;
 using namespace Eigen;
@@ -11,24 +15,75 @@ using namespace std;
 
 double get_wall_time();
 double get_cpu_time();
-MatrixXd readMatrixFromFile(string * , /*MatrixXd & ,*/ int, int);
+MatrixXd readMatrixFromFile(string * , int, int);
+template<typename DerivedA>
+MatrixXd inverseIterative(const MatrixBase<DerivedA>& , const MatrixBase<DerivedA>& );
 
 
 int main()
 {
-  string* filename = new string("./matrix_files/matrix12_1.txt");
-  MatrixXd M;
-  M = readMatrixFromFile(filename, 12, 12);
-  MatrixXd Minv = MatrixXd::Random(12,12);
-  double wall_time0 = get_cpu_time();
+  // File containing M
+  string* M_filename = new string(M_FILE);
+  MatrixXd M = readMatrixFromFile(M_filename, M_ROW, M_COL);
+  
+  /* Compute the inverse using SVD decmp  */
+  cout<< "Compute the inverse using SVD decmp ... "<<endl;
+  MatrixXd Minv = MatrixXd::Random(M_COL, M_ROW);
+  double wall_time0 = get_wall_time();
   pseudo_inverse_svd(M, Minv);
-  double wall_time1 = get_cpu_time();
-  MatrixXd errM = MatrixXd::Identity(12,12)-M*Minv;
-  cout<<"Error matrix: "<<endl<< errM <<endl;
-  cout<<"norm(I - M*Minv, inf) = "<< errM.lpNorm<Infinity>()  <<endl;
-  cout<<"Average of elements in the matrix = "<< errM.mean() <<endl;
-  cout<<"Time elapsed = "<< wall_time1 - wall_time0 <<"s"<<endl;
+  double wall_time1 = get_wall_time();
+  MatrixXd errM = MatrixXd::Identity(M_ROW,M_COL)-M*Minv;
+  //  cout<<"Error matrix: "<<endl<< errM <<endl;
+  cout<<"norm(I - M*Minv) = "<< errM.norm() <<endl;
+  //  cout<<"mean(I - M*Minv) = "<< errM.mean() <<endl;
+  cout<<"Time elapsed (wall time) = "<< wall_time1 - wall_time0 <<"s"<<endl;
+
+  /* Compute the inverse using iterative algorithm  */
+  cout<< "Compute the inverse using iterative algorithm ... "<<endl;
+  string* Minit_filename = new string(M_INIT_FILE);
+  Minv = readMatrixFromFile(Minit_filename, M_COL, M_ROW);
+  wall_time0 = get_wall_time();
+  Minv = inverseIterative(M, Minv);
+  wall_time1 = get_wall_time();
+  errM = MatrixXd::Identity(M_ROW,M_COL)-M*Minv;
+  cout<<"norm(I - M*Minv) = "<< errM.norm() <<endl;
+  //  cout<<"mean(I - M*Minv) = "<< errM.mean() <<endl;
+  cout<<"Time elapsed (wall time) = "<< wall_time1 - wall_time0 <<"s"<<endl;
+  cout<< Minv <<endl;
+
+
+  delete M_filename;
+  delete Minit_filename;
   return 0;
+}
+
+
+/**========================================inverseIterative========================================//
+ * Compute the inverse of matrix M using iterative algorithm
+ * with an initial value obtained from the analog circuitry
+ * For now, only square matrices are considered.
+ ************************************************************
+ * @param	M:		input matrix to be inverted
+ * @param 	Minit:		Initial approximation of the inverse of matrix M
+ * @return 	Minv:		Inverse of matrix M
+ */
+template<typename DerivedA>
+MatrixXd inverseIterative(const MatrixBase<DerivedA>& M, const MatrixBase<DerivedA>& Minit){
+  MatrixXd Minv = Minit;	// initial value
+  MatrixXd I = MatrixXd::Identity(M_ROW,M_COL);	// Identity matrix
+  MatrixXd errM = I - M*Minv;	// error matrix
+  double norm_2 = errM.norm();
+  int num_iterations = 0;	// number of iterations
+  while (norm_2 > 1e-4){
+    num_iterations ++;
+    Minv = Minv*(2*I - M*Minv);
+    errM = I - M*Minv;
+    norm_2 = errM.norm();
+    cout<<"iteration "<< num_iterations <<"  norm = "<< norm_2 <<endl;
+  }
+  //  for(int i = 0 ; i < num_iterations ; i ++)
+ 
+  return Minv;
 }
 
 /**========================================readMatrixFromFile========================================//
@@ -39,7 +94,7 @@ int main()
  * @param 	col:		#cols of the matrix
  * @return 	M:		row by col matrix read from filename
  */
-MatrixXd readMatrixFromFile(string * filename,/* MatrixXd & M,*/ int row, int col){
+MatrixXd readMatrixFromFile(string * filename, int row, int col){
   char buffer[1024];
   string* line = new string();
   char* ptr;
